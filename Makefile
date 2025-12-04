@@ -1,17 +1,19 @@
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -O2
+CXX := g++
+CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -I./src
+SRC_DIR := src
+SRCS := $(wildcard $(SRC_DIR)/*.cpp)
+OBJS := $(SRCS:.cpp=.o)
+TARGET := y86sim
 
-TARGET = cpu
-SRCS = cpu.cpp
-OBJS = $(SRCS:.cpp=.o)
+.PHONY: all clean
 
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	@$(CXX) $(CXXFLAGS) $^ -o $@
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+$(SRC_DIR)/%.o: $(SRC_DIR)/%.cpp
+	@$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	@rm -f $(SRC_DIR)/*.o $(TARGET)
