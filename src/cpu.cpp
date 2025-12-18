@@ -45,6 +45,25 @@ void CPU::step() {
 
     if (icode > I_POPQ) { state.stat = STAT_INS; return; }
 
+    bool ifunValid = true;
+    switch(icode) {
+        case I_OPQ:
+            if (ifun > F_XOR) ifunValid = false; 
+            break;
+        case I_RRMOVQ: 
+        case I_JXX:
+            if (ifun > C_G) ifunValid = false; 
+            break;
+        default:
+            if (ifun != 0) ifunValid = false;
+            break;
+    }
+
+    if (!ifunValid) {
+        state.stat = STAT_INS;
+        return;
+    }
+
     bool needReg = (icode == I_RRMOVQ || icode == I_IRMOVQ || icode == I_RMMOVQ ||
                     icode == I_MRMOVQ || icode == I_OPQ || icode == I_PUSHQ || icode == I_POPQ);
 
