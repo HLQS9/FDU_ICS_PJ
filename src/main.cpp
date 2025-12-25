@@ -20,5 +20,6 @@ int main() {
     }
 
     std::cout << std::endl << "]" << std::endl;
+    cpu.printCacheStats();
     return 0;
 }

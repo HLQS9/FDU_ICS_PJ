@@ -216,7 +216,7 @@ void CPU::printStateJSON(bool isFirst) const {
     bool firstMem = true;
     for (uint64_t base : aligned) {
         bool err = false;
-        uint64_t v = const_cast<Memory&>(mem).read8(base, err);
+        uint64_t v = const_cast<Memory&>(mem).read8(base, err, false, true); 
         if (v != 0) {
             if (!firstMem) std::cout << ",";
             std::cout << std::endl << "            \"" << base << "\": " << to_signed(v);
@@ -235,4 +235,8 @@ void CPU::printStateJSON(bool isFirst) const {
     std::cout << "        }," << std::endl;
     std::cout << "        \"STAT\": " << state.stat << std::endl;
     std::cout << "    }";
+}
+
+void CPU::printCacheStats() const {
+    mem.getCache().printSummary();
 }

@@ -17,6 +17,7 @@ public:
     void step();
     Stat getStatus() const;
     void printStateJSON(bool isFirst) const;
+    void printCacheStats() const;
 private:
     uint8_t fetchByte(uint64_t addr, bool &error) const;
 

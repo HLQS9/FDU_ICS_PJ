@@ -3,7 +3,7 @@
 #include <string>
 #include <stdexcept>
 
-Memory::Memory() { reset(); }
+Memory::Memory() : cache(64, 1, 64) { reset(); }
 
 void Memory::reset() { mem.clear(); }
 
@@ -14,8 +14,11 @@ bool Memory::isAddressValid(uint64_t addr, bool isWrite, bool isInstruction) con
     return true;
 }
 
-uint8_t Memory::readByte(uint64_t addr, bool &error) const {
+uint8_t Memory::readByte(uint64_t addr, bool &error, bool disableCache) const {
     if (error) return 0;
+    if (!disableCache) {
+        cache.access(addr);
+    }
     auto it = mem.find(addr);
     if (it != mem.end()) return it->second;
     return 0;
@@ -26,14 +29,19 @@ void Memory::writeByte(uint64_t addr, uint8_t val, bool &error) {
     mem[addr] = val;
 }
 
-uint64_t Memory::read8(uint64_t addr, bool &error, bool isInstruction) const {
+uint64_t Memory::read8(uint64_t addr, bool &error, bool isInstruction, bool disableCache) const {
     if (!isAddressValid(addr, false, isInstruction)) {
         error = true;
         return 0;
     }
+
+    if (!disableCache) {
+            cache.access(addr); 
+        }
+
     uint64_t val = 0;
     for (int i = 0; i < 8; ++i) {
-        uint8_t b = readByte(addr + i, error);
+        uint8_t b = readByte(addr + i, error, true);
         val |= (static_cast<uint64_t>(b) << (8 * i));
     }
     return val;
@@ -44,6 +52,9 @@ void Memory::write8(uint64_t addr, uint64_t val, bool &error) {
         error = true;
         return;
     }
+
+    cache.access(addr);
+
     for (int i = 0; i < 8; ++i) {
         writeByte(addr + i, static_cast<uint8_t>((val >> (8 * i)) & 0xFF), error);
     }

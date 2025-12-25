@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Y86 模拟器控制台</title>
+    <style>
+        :root {
+            --bg: #1e1e2e; --sidebar: #181825; --card: #313244;
+            --text: #cdd6f4; --blue: #89b4fa; --green: #a6e3a1; --red: #f38ba8; --yellow: #f9e2af; --peach: #fab387; --overlay: #45475a;
+        }
+        body { margin: 0; display: flex; height: 100vh; background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; }
+        
+        .sidebar { width: 260px; background: var(--sidebar); padding: 20px; display: flex; flex-direction: column; border-right: 1px solid #45475a; }
+        .main { flex: 1; padding: 40px; overflow-y: auto; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .file-list { list-style: none; padding: 0; flex: 1; overflow-y: auto; }
+        .file-item { 
+            padding: 12px 15px; cursor: pointer; border-radius: 8px; margin-bottom: 5px; 
+            font-family: monospace; transition: 0.2s; font-size: 14px; display: flex; justify-content: space-between;
+        }
+        .file-item:hover { background: #45475a; }
+        .file-item.active { background: var(--blue); color: #1e1e2e; font-weight: bold; }
+        
+        button.refresh-btn {
+            width: 100%; padding: 12px; background: #45475a; color: white; border: none; 
+            border-radius: 8px; cursor: pointer; margin-bottom: 20px; font-weight: bold; transition: 0.2s;
+        }
+        button.refresh-btn:hover { background: #585b70; }
+
+        .card { background: var(--card); padding: 25px; border-radius: 16px; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #45475a; padding-bottom: 15px; }
+        
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; margin-right: 10px; }
+        .badge-pass { background: var(--green); color: #1e1e2e; }
+        .badge-fail { background: var(--red); color: white; }
+        .badge-unknown { background: #585b70; color: white; }
+
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 15px; }
+        .metric { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; text-align: center; }
+        .val { font-size: 28px; font-weight: bold; display: block; margin-bottom: 5px; }
+        .label { opacity: 0.7; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+
+        .wall-section { margin-top: 25px; }
+        .bar-group { margin-bottom: 20px; }
+        .bar-title { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; opacity: 0.9; }
+        
+        .track { height: 30px; background: #45475a; border-radius: 15px; overflow: hidden; display: flex; position: relative; }
+        .fill { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: rgba(0,0,0,0.7); transition: width 0.6s ease; }
+        
+        .fill-work { background: var(--green); }
+        .fill-wait { background: var(--red); }
+        .fill-baseline { background: #6c7086; color: white; width: 100%; justify-content: center; } 
+
+        #loading { display: none; text-align: center; margin-top: 50px; font-size: 18px; color: var(--blue); }
+        .empty-state { text-align: center; opacity: 0.5; margin-top: 100px; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h3 style="margin-top:0; color:var(--blue)">Y86 模拟器控制台</h3>
+    <button class="refresh-btn" onclick="fetchFileList()">🔄 刷新测试用例</button>
+    <ul class="file-list" id="file-list"></ul>
+</div>
+
+<div class="main">
+    <div class="container">
+        <div id="loading">正在全速模拟硬件流水线...</div>
+
+        <div id="empty-state" class="empty-state">
+            <h2>请选择左侧测试用例</h2>
+            <p>基于 C++17 统一缓存 (Unified Cache) 架构</p>
+        </div>
+
+        <div id="dashboard" style="display:none; animation: fadeIn 0.4s ease-out;">
+            
+            <div class="card">
+                <div class="header">
+                    <h2 style="margin:0">运行报告</h2>
+                    <div>
+                        <span id="verdict-badge" class="status-badge badge-unknown">READY</span>
+                        <span id="file-name" style="font-family:monospace; opacity:0.7"></span>
+                    </div>
+                </div>
+                
+                <div class="grid">
+                    <div class="metric">
+                        <span class="val text-blue" id="val-instr">-</span>
+                        <span class="label">指令数 (Instructions)</span>
+                    </div>
+                    <div class="metric">
+                        <span class="val text-red" id="val-miss">-</span>
+                        <span class="label">Cache Misses</span>
+                    </div>
+                    <div class="metric">
+                        <span class="val text-green" id="val-rate">-</span>
+                        <span class="label">Hit Rate</span>
+                    </div>
+                    <div class="metric" style="background: rgba(250, 179, 135, 0.15); border: 1px solid var(--peach);">
+                        <span class="val" style="color:var(--peach)" id="val-speedup">-</span>
+                        <span class="label">性能加速比</span>
+                        <div style="font-size:10px; opacity:0.6; margin-top:4px;">vs. 无 Cache 模式</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="header" style="border:none; margin-bottom:10px;">
+                    <h3 style="margin:0; color:var(--text)">存储器墙(Memory Wall)分析</h3>
+                </div>
+                
+                <div class="wall-section">
+                    
+                    <div class="bar-group">
+                        <div class="bar-title">
+                            <span>实际耗时构成</span>
+                            <span id="total-time" style="font-weight:bold; color:var(--text)">0 ns</span>
+                        </div>
+                        <div class="track">
+                            <div id="bar-work" class="fill fill-work" style="width: 50%"></div>
+                            <div id="bar-wait" class="fill fill-wait" style="width: 50%">Wait: 2100ns</div>
+                        </div>
+                    </div>
+
+                    <div class="bar-group" style="opacity: 0.7;">
+                        <div class="bar-title">
+                            <span>无 Cache 理论耗时 (Baseline)</span>
+                            <span id="baseline-time">0 ns</span>
+                        </div>
+                        <div class="track" style="background: #313244; border: 1px dashed #585b70;">
+                             <div class="fill fill-baseline">无 Cache 模式</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:8000";
+    const HIT_TIME = 1;
+    const MISS_PENALTY = 100;
+
+    async function fetchFileList() {
+        try {
+            const res = await fetch(`${API_URL}/list_files`);
+            const files = await res.json();
+            const listEl = document.getElementById('file-list');
+            listEl.innerHTML = '';
+            files.forEach(f => {
+                const li = document.createElement('li');
+                li.className = 'file-item';
+                li.innerText = f;
+                li.onclick = () => runSimulation(f, li);
+                listEl.appendChild(li);
+            });
+        } catch(e) { alert("连接服务器失败"); }
+    }
+
+    async function runSimulation(filename, el) {
+        document.querySelectorAll('.file-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        
+        document.getElementById('empty-state').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('dashboard').style.display = 'none';
+
+        try {
+            const res = await fetch(`${API_URL}/run?file=${filename}`);
+            const data = await res.json();
+            renderDashboard(filename, data);
+        } catch (e) { console.error(e); } 
+        finally { document.getElementById('loading').style.display = 'none'; }
+    }
+
+    function renderDashboard(filename, data) {
+        document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('file-name').innerText = filename;
+
+        let instr = 0, hits = 0, misses = 0;
+        try {
+            const jsonPart = data.output.substring(data.output.indexOf('['), data.output.lastIndexOf(']')+1);
+            instr = JSON.parse(jsonPart).length;
+            const hitM = data.output.match(/Hits:\s*(\d+)/);
+            const missM = data.output.match(/Misses:\s*(\d+)/);
+            if(hitM) hits = parseInt(hitM[1]);
+            if(missM) misses = parseInt(missM[1]);
+        } catch(e) { console.error("解析错误", e); }
+
+        const totalAccess = hits + misses;
+        const rate = totalAccess ? (hits/totalAccess*100).toFixed(2) : 0;
+
+        const badge = document.getElementById('verdict-badge');
+        badge.className = 'status-badge';
+        if (!data.has_answer) {
+            badge.innerText = "NO ANSWER"; badge.classList.add('badge-unknown');
+        } else if (data.is_correct === "pass") {
+            badge.innerText = "PASS ✅"; badge.classList.add('badge-pass');
+        } else {
+            badge.innerText = "FAIL ❌"; badge.classList.add('badge-fail');
+        }
+
+        const timeWait = misses * MISS_PENALTY;
+        const timeWork = hits * HIT_TIME;
+        const timeActual = timeWork + timeWait;
+        const timeNoCache = totalAccess * MISS_PENALTY; 
+
+        const speedup = timeActual > 0 ? (timeNoCache / timeActual).toFixed(1) : "0.0";
+
+        document.getElementById('val-instr').innerText = instr;
+        document.getElementById('val-miss').innerText = misses;
+        document.getElementById('val-rate').innerText = rate + "%";
+        document.getElementById('val-speedup').innerText = speedup + "x";
+
+        const pctWait = timeActual > 0 ? (timeWait / timeActual * 100) : 0;
+        const pctWork = 100 - pctWait;
+
+        document.getElementById('bar-work').style.width = pctWork + "%";
+        document.getElementById('bar-work').innerHTML = pctWork > 15 ? `Hits` : '';
+        
+        document.getElementById('bar-wait').style.width = pctWait + "%";
+        document.getElementById('bar-wait').innerHTML = pctWait > 15 ? `Wait: ${Math.round(timeWait)}ns` : '';
+
+        document.getElementById('total-time').innerText = `${timeActual} ns`;
+        document.getElementById('baseline-time').innerText = `${timeNoCache} ns`;
+    }
+
+    fetchFileList();
+</script>
+</body>
+</html>
